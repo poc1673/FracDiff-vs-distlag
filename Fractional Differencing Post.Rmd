@@ -1,0 +1,140 @@
+---
+title: "Fractional Differencing Post"
+author: "Peter Caya"
+date: "2022-09-26"
+output: html_document
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Steps: [1] Load bank data into memory for 90 DPD on residential
+mortgages. [2] Pick aggregation groups [3] Determine the transformations
+to be used for independent variables. • Distributed lag transformation •
+Fractional differencing ̉• Level variables. [4] Form the transformations
+for the variables. [5] Fit list of models [6] Examine relative
+performance of models over time periods; Include discussion of the
+recessionary periods.
+
+Define functions:
+
+```{r}
+#################################################################################################### 
+# Function Name: centerData 
+# Description: Function to center the values of a data-series
+# Inputs 
+# [1] dataValues
+# Outputs:
+# [1] centeredData 
+centerData <- function(dataValues) { 
+   dataMin <- min(dataValues, na.rm =T)
+   dataMax <- max(dataValues, na.rm =T)
+   centeredData <- (dataValues-dataMin)/(dataMax - dataMin)
+   return(centeredData) } 
+#####################################################################################################
+```
+
+# Load Data
+
+```{r}
+library(pacman)
+p_load(data.table,magrittr,ggplot2)
+formattingDetails <- function(){return( theme_bw()+theme(axis.text = element_text(size = 13),
+                                                         legend.position = "bottom",
+                                                         axis.title = element_text(size = 16 ),
+                                                         text = element_text(family = "sans"), 
+                                                         title = element_text(size = 20),
+                                                         legend.text = element_text(size = 13),
+                                                         legend.title = element_blank())      )}
+
+stateFileData <- list.files("Call_Report_App/ID_files/",pattern = "RDS$",full.names = T)
+stateFileData <- lapply(X = stateFileData,FUN = function(x){as.data.table(readRDS(x))} ) %>% rbindlist
+macroData <- readRDS("C:/Users/peter/Dropbox/Projects/FFIEC/Call_Report_App/Macroeconomic/data_for_all_variables.rds")
+
+pdData <- stateFileData[(Field == "90 days past due")|Field == "Total loans" , ][Type == "Credit Card"  ][`Financial Institution State`!=0][,c("Date","Financial Institution Name","Financial Institution State","Field","value"),with = F]
+pdData <- dcast(data = pdData,formula = Date + `Financial Institution Name` + `Financial Institution State`~Field,fun.aggregate = function(x){sum(x,na.rm = T)},value.var = "value") %>% as.data.table
+
+dataforTrainingNational <- pdData[,lapply(X = .SD, FUN = function(x){sum(x,na.rm = T)}),.SDcols = c("90 days past due","Total loans"),by = c("Date" ) ]
+dataforTrainingNational <- dataforTraining[,"90+ DPD":= `90 days past due`/`Total loans`]
+
+```
+
+## Plot the results:
+
+```{r}
+ggplot(data = dataforTrainingNational) + geom_line(aes(x=Date,`90+ DPD`)) + formattingDetails() + ggtitle("National 90+ DPD")
+```
+
+## Normalize the result and plot alongside untransformed variables
+
+```{r}
+# Collect macro-economic data
+macroVars <- readRDS("[2] Macroeconomic data/untransformedMacro.RDS")
+names(macroVars) <- c("Date","Consumer Debt Service Payments","Consumer Price Index", "HPI","10 Year Treasury Yields","GDP","SP 500","Unemployment Rate")
+macroVars <- as.data.table(macroVars)
+```
+
+```{r}
+centeredData <- macroVars[,lapply(X = .SD,function(x){centerData(x)}  ),.SDcols = c( "Consumer Debt Service Payments","Consumer Price Index", "HPI","10 Year Treasury Yields","GDP","SP 500","Unemployment Rate")]
+centeredData$Date <- macroVars$Date
+centeredData
+```
+
+```{r}
+dataforTrainingNational$Date <- dataforTrainingNational$Date +1
+results <- merge(x =dataforTrainingNational[,c("Date","90+ DPD"),with = F] , y=centeredData , by = "Date") 
+centeredData <- results[,lapply(X = .SD,function(x){centerData(x)}  ),.SDcols = c( "90+ DPD","Consumer Debt Service Payments","Consumer Price Index", "HPI","10 Year Treasury Yields","GDP","SP 500","Unemployment Rate")]
+centeredData$Date <- results$Date
+
+```
+
+```{r}
+centeredDataforPlot <- melt(centeredData,id.vars = "Date")
+ggplot(centeredDataforPlot)+geom_line(aes(x = Date , y = value , color = variable)) + formattingDetails()+  scale_color_manual(values=c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7"))
+```
+
+# Variable investigation
+
+## Transform macro-economic variables
+
+Three sets of transformations are used:
+
+1.  Relative relative difference.
+2.  The factors and transformations described in Breeden.
+3.  Fractional differencing transformations
+
+```{r}
+source("C:/Users/peter/Dropbox/Projects/FFIEC/functions for blog post.R")
+transformedData <- apply(X = centeredData[,-1],2,
+                         FUN = function(x){
+                           identifyDifferencingNew(x,dLow = 0,dHigh = 2,size = 10,steps = 20,outputTransformed = TRUE    )}     )
+
+
+
+```
+
+```{r}
+
+
+
+
+# For each variable use the following fractional differencing:
+# d values from 0 (no change) to 2
+# All values will be considered. Nonstationarity and noncorrelation will be prioritized in model selection.
+
+
+
+
+
+
+
+
+```
+
+## Form distributed lag models
+
+## Form models with fractional differencing
