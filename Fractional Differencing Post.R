@@ -29,9 +29,6 @@ centerData <- function(dataValues) {
 #####################################################################################################
 
 # [1] ---------------------------------------------------------------------
-
-
-## ------------------------------------------------------------------------------------------------------------------
 library(pacman)
 p_load(data.table,magrittr,ggplot2,tseries)
 source("functions for blog post.R")
@@ -46,7 +43,6 @@ formattingDetails <- function(){return( theme_bw()+theme(axis.text = element_tex
 
 stateFileData <- list.files("ID_files/",pattern = "RDS$",full.names = T)
 stateFileData <- lapply(X = stateFileData,FUN = function(x){as.data.table(readRDS(x))} ) %>% rbindlist
-macroData <- readRDS("data_for_all_variables.rds")
 
 pdData <- stateFileData[(Field == "90 days past due")|Field == "Total loans" , ][Type == "Credit Card"  ][`Financial Institution State`!=0][,c("Date","Financial Institution Name","Financial Institution State","Field","value"),with = F]
 pdData <- dcast(data = pdData,formula = Date + `Financial Institution Name` + `Financial Institution State`~Field,fun.aggregate = function(x){sum(x,na.rm = T)},value.var = "value") %>% as.data.table
@@ -76,8 +72,6 @@ centeredDataforPlot <- melt(centeredData,id.vars = "Date")
 centeredPlot <- ggplot(centeredDataforPlot)+geom_line(aes(x = Date , y = value , color = variable)) + formattingDetails()+  scale_color_manual(values=c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7"))
 ggsave(plot = centeredPlot,filename = "Figures/Centered Variables.png", height = 5, width = 9)
 
-
-
 # [3] ---------------------------------------------------------------------
 # For each variable use the following fractional differencing:
 # d values from 0 (no change) to 2
@@ -94,16 +88,41 @@ a = lapply(1:length(transformedData), function(x){
 names(a) <- names(transformedData)
 for(i in names(transformedData)    ){  names(transformedData[[i]]) <- a[[i]]}
 fracDiffData <- Reduce(f = cbind  , x = transformedData, accumulate = FALSE)
-## ------------------------------------------------------------------------------------------------------------------
-
 
 # [4] ---------------------------------------------------------------------
+# These results are loaded from the Data Transformation.R script.
+distLagData <- readRDS("data_for_all_variables.rds")
+
+# [5] ---------------------------------------------------------------------
+
+# We will use the following procedure for selecting the best models:
+# i. Regression equations for all underlying variables (unemployment, GDP, et cetera) will be created with no variable overlap (IE no cases where there is more than on unemployment rate)
+# ii. Regression will be run for all equations for both the distributed lag and the fractional differencing models.
+# iii. A set of criteria will be set for expected coefficients. Result with insignificant result wil be removed.
+# iv. The adjusted R^2 will be compared across results; the result with the highest R^2 will be selected.
+
+
+#  • get the column names
+#  • expand.grd for all combos
+#  • count all results; remove results where the same variable appears twice
+#  • form the formulas
+
+
+fracDiffCombos <- expand.grid(names(fracDiffData) ,names(fracDiffData) ) %>% as.data.table
+fracDiffCombos$Var1 %>% gsub(fracDiffCombos$Var1,"_.*$","")
+fracDiffCombos <- fracDiffCombos[!(gsub( Var1,pattern = "_.*$",replacement = "")==gsub( Var2,pattern = "_.*$",replacement = ""))]
+fracDiffFormulas <- paste("90+ DPD~",fracDiffCombos$Var1,"+",fracDiffCombos$Var2,sep = "")
 
 
 
 
+distLagCombos <- expand.grid(names(distLagData) ,names(distLagData) ) %>% as.data.table
+distLagCombos <- distLagCombos[!(gsub( Var1,pattern = "_.*$",replacement = "")==gsub( Var2,pattern = "_.*$",replacement = ""))]
+distLagFormulas <- paste("90+ DPD~",distLagCombos$Var1,"+",distLagCombos$Var2,sep = "")
+distLagFormulas
 
-distLagData <- 
+
+
 
 
 
